@@ -1,0 +1,43 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Create Security Groups
+Parameters:
+  VpcId: 
+    Type: String
+    Description: Id of the Vpc
+  RemoteAccessCIDR:
+    Type: String
+    Description: Cidr Block Range Allowed to SSH into VPC
+  DatabasePort: 
+    Type: Number
+    MinValue: 1150
+    MaxValue: 65535
+    Description: Port to connect to Database
+Resources:
+  BastionSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow SSH to Bastion Host
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: !Ref RemoteAccessCIDR
+      - IpProtocol: icmp
+        FromPort: '-1'
+        ToPort: '-1'
+        CidrIp: !Ref RemoteAccessCIDR
+      - IpProtocol: tcp
+        FromPort: 32768
+        ToPort: 61000
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 1024
+        ToPort: 65535
+        CidrIp: 0.0.0.0/0
+
+Outputs:
+  BastionSecurityGroupId:
+    Description: Id for Security Group that Controls Access to Bastion
+    Value: !Ref BastionSecurityGroup

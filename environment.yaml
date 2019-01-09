@@ -1,0 +1,8 @@
+---
+
+- name: Deploy Not Hot Dog Environment
+  hosts: localhost
+  connection: local
+  roles: 
+  - environment
+

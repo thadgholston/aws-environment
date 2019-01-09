@@ -1,0 +1,16 @@
+---
+
+aws_region: "us-east-1"
+aws_profile: "" # Profile you want to use to deploy the environment
+user_home_dir: "/Users/yourusername" # Your username. Used to provide path the ssh file
+bucket_prefix: "" # Prefix you want to use for aws buckets
+availability_zones: "us-east-1a,us-east-1b,us-east-1c"
+vpn_cidr_block_range: "" # Your IP Address
+public_subnet_cidr_blocks: "10.0.0.0/24,10.0.1.0/24,10.0.2.0/24"
+private_subnet_cidr_blocks: "10.0.11.0/24,10.0.12.0/24,10.0.13.0/24"
+database_port: ""
+number_of_bastions: 1 # Up to four bastion servers allowed. Limitation of the AWS Bastion template.
+project_name: "" # Prefix used when creating the environment
+github_account: "" # Github username used to create CI/CD Pipeline
+github_oauth_token: "" # Github username used to create CI/CD Pipeline
+api_repo: "" # Name of repo used to host code for API backend

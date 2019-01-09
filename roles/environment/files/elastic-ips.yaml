@@ -1,0 +1,65 @@
+---
+
+Description: Creates the network ACLs for the VPC
+AWSTemplateFormatVersion: "2010-09-09"
+Parameters:
+  NumBastionHosts:
+    AllowedValues:
+      - '1'
+      - '2'
+      - '3'
+      - '4'
+    Default: '1'
+    Description: Enter the number of bastion hosts to create
+    Type: String
+Conditions:
+  2BastionCondition: !Or
+    - !Equals
+      - !Ref NumBastionHosts
+      - '2'
+    - !Condition 3BastionCondition
+    - !Condition 4BastionCondition
+  3BastionCondition: !Or
+    - !Equals
+      - !Ref NumBastionHosts
+      - '3'
+    - !Condition 4BastionCondition
+  4BastionCondition: !Equals
+    - !Ref NumBastionHosts
+    - '4'
+Resources:
+  BastionEIP1:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: "vpc"
+  BastionEIP2:
+    Type: AWS::EC2::EIP
+    Condition: 2BastionCondition
+    Properties:
+      Domain: "vpc"
+  BastionEIP3:
+    Type: AWS::EC2::EIP
+    Condition: 3BastionCondition
+    Properties:
+      Domain: "vpc"
+  BastionEIP4:
+    Type: AWS::EC2::EIP
+    Condition: 4BastionCondition
+    Properties:
+      Domain: "vpc"
+Outputs:
+  BastionEIP1:
+    Description: Elastic IP for Bastion One
+    Value: !Ref BastionEIP1
+  BastionEIP2:
+    Description: Elastic IP for Bastion Two
+    Condition: 2BastionCondition
+    Value: !Ref BastionEIP2
+  BastionEIP3:
+    Description: Elastic IP for Bastion Three
+    Condition: 3BastionCondition
+    Value: !Ref BastionEIP3
+  BastionEIP4:
+    Description: Elastic IP for Bastion Four
+    Condition: 4BastionCondition
+    Value: !Ref BastionEIP4

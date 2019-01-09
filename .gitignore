@@ -1,0 +1,6 @@
+inventories/local
+inventories/staging
+inventories/prod
+**.iml
+.idea
+**.retry

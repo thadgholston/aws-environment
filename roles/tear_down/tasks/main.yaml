@@ -1,0 +1,29 @@
+---
+
+- name: Teardown Bastion Instance
+  cloudformation:
+    profile: "{{ aws_profile }}"
+    stack_name: "bastion"
+    state: "absent"
+    region: "{{ aws_region }}"
+
+- name: Teardown Security Groups
+  cloudformation:
+    profile: "{{ aws_profile }}"
+    stack_name: "security-groups"
+    state: "absent"
+    region: "{{ aws_region }}"
+
+- name: Teardown NACL
+  cloudformation:
+    profile: "{{ aws_profile }}"
+    stack_name: "nacl"
+    state: "absent"
+    region: "{{ aws_region }}"
+
+- name: Teardown VPC
+  cloudformation:
+    profile: "{{ aws_profile }}"
+    stack_name: "vpc"
+    state: "absent"
+    region: "{{ aws_region }}"

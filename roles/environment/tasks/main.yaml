@@ -1,0 +1,156 @@
+---
+
+- name: Generate ssh keys for aws environment
+  command: "ssh-keygen -q -t rsa -f {{ user_home_dir }}/.ssh/admin_keypair -C '' -N ''"
+  args:
+    creates: "{{ user_home_dir }}/.ssh/admin_keypair" 
+
+- name: Upload Admin SSH Key to S3 Bucket 
+  ec2_key:
+    profile: "{{ aws_profile }}"
+    region: "{{ aws_region }}"
+    state: "present"
+    name: admin_keypair
+    key_material: "{{ lookup('file', user_home_dir + '/.ssh/admin_keypair.pub' ) }}"
+
+- name: Deploy EIPs
+  cloudformation:
+    profile: "{{ aws_profile }}"
+    stack_name: "elastic-ips"
+    state: "present"
+    region: "{{ aws_region }}"
+    disable_rollback: true
+    template: "{{ role_path }}/files/elastic-ips.yaml"
+    template_parameters:
+      NumBastionHosts: "{{ number_of_bastions }}"
+
+- name: Gather Facts from Outputs of Elastic Ips Stack
+  cloudformation_facts:
+    region: "{{ aws_region }}"
+    profile: "{{ aws_profile }}"
+    stack_name: "elastic-ips"
+
+- set_fact:
+    bastion_eip_1: "{{ ansible_facts['cloudformation']['elastic-ips']['stack_outputs']['BastionEIP1'] }}"
+
+- set_fact:
+    bastion_eip_2: "{{ ansible_facts['cloudformation']['elastic-ips']['stack_outputs']['BastionEIP2'] | default(omit) }}"
+
+- set_fact:
+    bastion_eip_3: "{{ ansible_facts['cloudformation']['elastic-ips']['stack_outputs']['BastionEIP3'] | default(omit) }}"
+
+- set_fact:
+    bastion_eip_4: "{{ ansible_facts['cloudformation']['elastic-ips']['stack_outputs']['BastionEIP4'] | default(omit) }}"
+
+- name: Deploy VPC
+  cloudformation:
+    profile: "{{ aws_profile }}"
+    stack_name: "vpc"
+    state: "present"
+    region: "{{ aws_region }}"
+    disable_rollback: true
+    template: "{{ role_path }}/files/vpc.yaml"
+    template_parameters:
+      AvailabilityZones: "{{ availability_zones }}"
+      PublicSubnetCidrBlocks: "{{ public_subnet_cidr_blocks }}"
+      PrivateSubnetCidrBlocks: "{{ private_subnet_cidr_blocks }}"
+
+- name: Gather Facts from Outputs of VPC Stack
+  cloudformation_facts:
+    region: "{{ aws_region }}"
+    profile: "{{ aws_profile }}"
+    stack_name: "vpc"
+
+- set_fact:
+    public_subnet_ids: "{{ ansible_facts['cloudformation']['vpc']['stack_outputs']['PublicSubnetIds'] }}"
+
+- set_fact:
+    private_subnet_ids: "{{ ansible_facts['cloudformation']['vpc']['stack_outputs']['PrivateSubnetIds'] }}"
+
+- set_fact:
+    vpc_id: "{{ ansible_facts['cloudformation']['vpc']['stack_outputs']['VpcId'] }}"
+
+- name: Deploy NACL
+  cloudformation:
+    profile: "{{ aws_profile }}"
+    stack_name: "nacl"
+    state: "present"
+    region: "{{ aws_region }}"
+    disable_rollback: true
+    template: "{{ role_path }}/files/nacl.yaml"
+    template_parameters:
+      PublicSubnetIds: "{{ public_subnet_ids }}"
+      PrivateSubnetIds: "{{ private_subnet_ids }}"
+      VpcId:  "{{ vpc_id }}"
+      RemoteAccessCIDR:  "{{ vpn_cidr_block_range }}"
+      PrivateSubnetCidrBlocks: "{{ private_subnet_cidr_blocks }}"
+      PublicSubnetCidrBlocks: "{{ public_subnet_cidr_blocks }}"
+      DatabasePort: "{{ database_port }}"
+
+- name: Deploy Security Groups
+  cloudformation:
+    profile: "{{ aws_profile }}"
+    stack_name: "security-groups"
+    state: "present"
+    region: "{{ aws_region }}"
+    disable_rollback: true
+    template: "{{ role_path }}/files/security-groups.yaml"
+    template_parameters:
+      VpcId:  "{{ vpc_id }}"
+      RemoteAccessCIDR:  "{{ vpn_cidr_block_range }}"
+      DatabasePort: "{{ database_port }}"
+
+- name: Gather Facts from Outputs of Security Group Stack
+  cloudformation_facts:
+    region: "{{ aws_region }}"
+    profile: "{{ aws_profile }}"
+    stack_name: "security-groups"
+
+- set_fact:
+    bastion_security_group_id: "{{ ansible_facts['cloudformation']['security-groups']['stack_outputs']['BastionSecurityGroupId'] }}"
+
+- name: Deploy Bastion Instance
+  cloudformation:
+    profile: "{{ aws_profile }}"
+    stack_name: "bastion"
+    state: "present"
+    region: "{{ aws_region }}"
+    disable_rollback: true
+    template: "{{ role_path }}/files/bastion.yaml"
+    template_parameters:
+      BastionAMIOS: Amazon-Linux-HVM
+      BastionBanner: https://aws-quickstart.s3.amazonaws.com/quickstart-linux-bastion/scripts/banner_message.txt
+      BastionTenancy: default
+      BastionInstanceType: t2.nano
+      EnableBanner: 'true'
+      EnableTCPForwarding: 'false'
+      EnableX11Forwarding: 'false'
+      KeyPairName: admin_keypair
+      NumBastionHosts: "{{ number_of_bastions }}"
+      PublicSubnet1ID: "{{ public_subnet_ids.split(',')[0] }}"
+      PublicSubnet2ID: "{{ public_subnet_ids.split(',')[1] }}"
+      PublicSubnet3ID: "{{ public_subnet_ids.split(',')[2] }}"
+      QSS3BucketName: aws-quickstart
+      QSS3KeyPrefix: quickstart-linux-bastion/
+      RemoteAccessCIDR: "{{ vpn_cidr_block_range }}"
+      VPCID: "{{ vpc_id }}"
+      AlternativeInitializationScript: ''
+      OSImageOverride: ''
+      AlternativeIAMRole: ''
+      EnvironmentVariables: ''
+      BastionSecurityGroupId: "{{ bastion_security_group_id }}"
+      BastionEIPList: "{{ bastion_eip_1 }},{{ bastion_eip_2 | default('Null') }},{{ bastion_eip_3 | default('Null') }},{{ bastion_eip_4 | default('Null') }}"
+
+- name: Deploy CI/CD Pipeline
+  cloudformation:
+    profile: "{{ aws_profile }}"
+    stack_name: "ci-cd"
+    state: "present"
+    region: "{{ aws_region }}"
+    disable_rollback: true
+    template: "{{ role_path }}/files/ci-cd.yaml"
+    template_parameters:
+      ProjectName: "{{ project_name }}"
+      GithubAccount: "{{ github_account }}"
+      GitHubOAuthToken: "{{ github_oauth_token }}"
+      ApiRepo: "{{ api_repo }}"

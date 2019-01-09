@@ -1,0 +1,67 @@
+---
+Description: Deploys a serverless Database Instance
+AWSTemplateFormatVersion: "2010-09-09"
+Parameters:
+  Username: 
+    Type: String
+    Description: Master Username for the Database
+  Password: 
+    Type: String
+    Description: Master Password for the Database
+  AvailabilityZones:
+    Type: CommaDelimitedList
+    Description: Availability Zones to Deploy the Database in
+  DatabaseName:
+    Type: String
+    Description: Name for the Database
+  VpcSecurityGroupIds:
+    Type: CommaDelimitedList
+    Description: List of Security Group Ids to Attach to the Cluster
+  SubnetIds:
+    Type: CommaDelimitedList
+    Description: List of Subnet Groups to Deploy the Cluster in
+Resources:
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription:
+      DBSubnetGroupName: 
+      SubnetIds: !Ref SubnetIds
+  RDSCluster:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      AvailabilityZones: !Ref AvailabilityZones
+      BackupRetentionPeriod: 1
+      DatabaseName: !Ref DatabaseName
+      DBClusterParameterGroupName: !Ref RDSDBClusterParameterGroup
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      EnableIAMDatabaseAuthentication: True
+      Engine: aurora-postgresql
+      EngineMode: serverless
+      EngineVersion: 10.3
+      KmsKeyId: String
+      MasterUsername: !Ref Username
+      MasterUserPassword: !Ref Password
+      Port: 5432
+      PreferredBackupWindow: String
+      PreferredMaintenanceWindow: String
+      ReplicationSourceIdentifier: String
+      ScalingConfiguration: 
+        AutoPause: Boolean
+        MaxCapacity: Integer
+        MinCapacity: Integer
+        SecondsUntilAutoPause: Integer
+      StorageEncrypted: True
+      VpcSecurityGroupIds: !Ref VpcSecurityGroupIds
+  RDSDBClusterParameterGroup:
+    Type: AWS::RDS::DBClusterParameterGroupName
+    Properties:
+      Family: aurora5.6
+      Parameters:
+        time_zone: US/Eastern
+  RDSDBParameterGroup:
+    Type: AWS::RDS::DBParameterGroup
+    Properties:
+      Family: aurora5.6
+      Parameters:
+        sql_mode: IGNORE_SPACE

@@ -1,0 +1,372 @@
+---
+Description: Creates the network ACLs for the VPC
+AWSTemplateFormatVersion: "2010-09-09"
+Parameters:
+  PublicSubnetIds: 
+    Type: CommaDelimitedList
+    Description: List of Public Subnet Ids
+  PrivateSubnetIds:
+    Type: CommaDelimitedList
+    Description: List of Private Subnet Ids
+  VpcId: 
+    Type: String
+    Description: Id of the Vpc
+  RemoteAccessCIDR:
+    Type: String
+    Description: Cidr Block Range Allowed to SSH into VPC
+  PublicSubnetCidrBlocks:
+    Type: CommaDelimitedList
+    Description: List of Cidr Blocks for Public Subnets
+  PrivateSubnetCidrBlocks:
+    Type: CommaDelimitedList
+    Description: List of Cidr Blocks for Private Subnets
+  DatabasePort: 
+    Type: Number
+    MinValue: 1150
+    MaxValue: 65535
+    Description: Port to connect to Database
+Resources:
+  PublicNetworkAcl:
+    Type: AWS::EC2::NetworkAcl
+    Properties:
+      VpcId: !Ref VpcId
+      Tags:
+        - Key: "Name"
+          Value: "PublicNetworkAcl"
+  PublicInboundHTTPNetworkAclEntry:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: 0.0.0.0/0
+      Egress: False
+      NetworkAclId: !Ref PublicNetworkAcl
+      PortRange:
+        From: 80
+        To: 80
+      Protocol: 6
+      RuleAction: ALLOW
+      RuleNumber: 100
+  PublicInboundHTTPSNetworkAclEntry:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: 0.0.0.0/0
+      Egress: False
+      NetworkAclId: !Ref PublicNetworkAcl
+      PortRange:
+        From: 443
+        To: 443
+      Protocol: 6
+      RuleAction: ALLOW
+      RuleNumber: 200
+  PublicInboundRestrictedSSHNetworkAclEntry:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: !Ref RemoteAccessCIDR
+      Egress: False
+      NetworkAclId: !Ref PublicNetworkAcl
+      PortRange:
+        From: 22
+        To: 22
+      Protocol: 6
+      RuleAction: ALLOW
+      RuleNumber: 300
+  PublicInboundEphemeralNetworkAclEntry:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: 0.0.0.0/0
+      Egress: False
+      NetworkAclId: !Ref PublicNetworkAcl
+      PortRange:
+        From: 1024
+        To: 65535
+      Protocol: 6
+      RuleAction: ALLOW
+      RuleNumber: 400
+  PublicInboundICMPNetworkAclEntry:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: 0.0.0.0/0
+      Egress: False
+      NetworkAclId: !Ref PublicNetworkAcl
+      Icmp:
+        Code: -1
+        Type: -1
+      Protocol: 1
+      RuleAction: ALLOW
+      RuleNumber: 500
+  PublicInboudDenyAllNetworkAclEntry:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: 0.0.0.0/0
+      Egress: True
+      NetworkAclId: !Ref PublicNetworkAcl
+      PortRange:
+        From: 0
+        To: 65535
+      Protocol: -1
+      RuleAction: DENY
+      RuleNumber: 1000
+  PublicOutboundHTTPNetworkAclEntry:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: 0.0.0.0/0
+      Egress: True
+      NetworkAclId: !Ref PublicNetworkAcl
+      PortRange:
+        From: 80
+        To: 80
+      Protocol: 6
+      RuleAction: ALLOW
+      RuleNumber: 100
+  PublicOutboundHTTPSNetworkAclEntry:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: 0.0.0.0/0
+      Egress: True
+      NetworkAclId: !Ref PublicNetworkAcl
+      PortRange:
+        From: 443
+        To: 443
+      Protocol: 6
+      RuleAction: ALLOW
+      RuleNumber: 200
+  PublicOutboundDatabaseAccessANetworkAclEntry:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: !Select [ 0, !Ref PrivateSubnetCidrBlocks ]
+      Egress: True
+      NetworkAclId: !Ref PublicNetworkAcl
+      PortRange:
+        From: !Ref DatabasePort
+        To: !Ref DatabasePort
+      Protocol: 6
+      RuleAction: ALLOW
+      RuleNumber: 300
+  PublicOutboundDatabaseAccessBNetworkAclEntry:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: !Select [ 1, !Ref PrivateSubnetCidrBlocks ]
+      Egress: True
+      NetworkAclId: !Ref PublicNetworkAcl
+      PortRange:
+        From: !Ref DatabasePort
+        To: !Ref DatabasePort
+      Protocol: 6
+      RuleAction: ALLOW
+      RuleNumber: 310
+  PublicOutboundDatabaseAccessCNetworkAclEntry:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: !Select [ 2, !Ref PrivateSubnetCidrBlocks ]
+      Egress: True
+      NetworkAclId: !Ref PublicNetworkAcl
+      PortRange:
+        From: !Ref DatabasePort
+        To: !Ref DatabasePort
+      Protocol: 6
+      RuleAction: ALLOW
+      RuleNumber: 320
+  PublicOutboundIntoPrivateSubASSHNetworkAclEntry:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: !Select [ 0, !Ref PrivateSubnetCidrBlocks ]
+      Egress: True
+      NetworkAclId: !Ref PublicNetworkAcl
+      PortRange: 
+        From: 22
+        To: 22
+      Protocol: 6
+      RuleAction: ALLOW
+      RuleNumber: 400
+  PublicOutboundIntoPrivateSubBSSHNetworkAclEntry:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: !Select [ 1, !Ref PrivateSubnetCidrBlocks ]
+      Egress: True
+      NetworkAclId: !Ref PublicNetworkAcl
+      PortRange:
+        From: 22
+        To: 22
+      Protocol: 6
+      RuleAction: ALLOW
+      RuleNumber: 410
+  PublicOutboundIntoPrivateSubCSSHNetworkAclEntry:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: !Select [ 2, !Ref PrivateSubnetCidrBlocks ]
+      Egress: True
+      NetworkAclId: !Ref PublicNetworkAcl
+      PortRange: 
+        From: 22
+        To: 22
+      Protocol: 6
+      RuleAction: ALLOW
+      RuleNumber: 420
+  PublicOutboundEphemeralNetworkAclEntry:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: 0.0.0.0/0
+      Egress: True
+      NetworkAclId: !Ref PublicNetworkAcl
+      PortRange:
+        From: 1024
+        To: 65535
+      Protocol: 6
+      RuleAction: ALLOW
+      RuleNumber: 500
+  PublicOutboundICMPNetworkAclEntry:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: 0.0.0.0/0
+      Egress: True
+      NetworkAclId: !Ref PublicNetworkAcl
+      Icmp:
+        Code: -1
+        Type: -1
+      Protocol: 1
+      RuleAction: ALLOW
+      RuleNumber: 600
+  PublicDenyAllOutboundNetworkAclEntry:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: 0.0.0.0/0
+      Egress: True
+      NetworkAclId: !Ref PublicNetworkAcl
+      PortRange:
+        From: 0
+        To: 65535
+      Protocol: -1
+      RuleAction: DENY
+      RuleNumber: 10000
+  PublicSubnetworkAclAssociationA:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Select [ 0, !Ref PublicSubnetIds ]
+      NetworkAclId: !Ref PublicNetworkAcl
+  PublicSubnetworkAclAssociationB:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Select [ 1, !Ref PublicSubnetIds ]
+      NetworkAclId: !Ref PublicNetworkAcl
+  PublicSubnetworkAclAssociationC:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Select [ 2, !Ref PublicSubnetIds ]
+      NetworkAclId: !Ref PublicNetworkAcl
+  PrivateNetworkAcl:
+    Type: AWS::EC2::NetworkAcl
+    Properties:
+      VpcId: !Ref VpcId
+      Tags:
+        - Key: "Name"
+          Value: "PrivateNetworkAcl"
+  PrivateInboundSubADBNetworkAclEntry:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: !Select [ 0, !Ref PublicSubnetCidrBlocks ]
+      Egress: False
+      NetworkAclId: !Ref PrivateNetworkAcl
+      PortRange:
+        From: !Ref DatabasePort
+        To: !Ref DatabasePort
+      Protocol: 6
+      RuleAction: ALLOW
+      RuleNumber: 100
+  PrivateInboundSubBDBNetworkAclEntry:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: !Select [ 1, !Ref PublicSubnetCidrBlocks ]
+      Egress: False
+      NetworkAclId: !Ref PrivateNetworkAcl
+      PortRange:
+        From: !Ref DatabasePort
+        To: !Ref DatabasePort
+      Protocol: 6
+      RuleAction: ALLOW
+      RuleNumber: 101
+  PrivateInboundSubCDBNetworkAclEntry:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: !Select [ 2, !Ref PublicSubnetCidrBlocks ]
+      Egress: False
+      NetworkAclId: !Ref PrivateNetworkAcl
+      PortRange:
+        From: !Ref DatabasePort
+        To: !Ref DatabasePort
+      Protocol: 6
+      RuleAction: ALLOW
+      RuleNumber: 102
+  PrivateInboundSubASSHNetworkAclEntry:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: !Select [ 0, !Ref PublicSubnetCidrBlocks ]
+      Egress: False
+      NetworkAclId: !Ref PrivateNetworkAcl
+      PortRange:
+        From: 22
+        To: 22
+      Protocol: 6
+      RuleAction: ALLOW
+      RuleNumber: 120
+  PrivateInboundSubBSSHNetworkAclEntry:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: !Select [ 1, !Ref PublicSubnetCidrBlocks ]
+      Egress: False
+      NetworkAclId: !Ref PrivateNetworkAcl
+      PortRange:
+        From: 22
+        To: 22
+      Protocol: 6
+      RuleAction: ALLOW
+      RuleNumber: 121
+  PrivateInboundSubCSSHNetworkAclEntry:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: !Select [ 2, !Ref PublicSubnetCidrBlocks ]
+      Egress: False
+      NetworkAclId: !Ref PrivateNetworkAcl
+      PortRange:
+        From: 22
+        To: 22
+      Protocol: 6
+      RuleAction: ALLOW
+      RuleNumber: 122
+  PrivateInboundNatNetworkAclEntry:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: 0.0.0.0/0
+      Egress: False
+      NetworkAclId: !Ref PrivateNetworkAcl
+      PortRange:
+        From: 1024
+        To: 65535
+      Protocol: 6
+      RuleAction: ALLOW
+      RuleNumber: 140
+  PrivateInboundDenyAllNetworkAclEntry:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: 0.0.0.0/0
+      Egress: False
+      NetworkAclId: !Ref PrivateNetworkAcl
+      PortRange:
+        From: 0
+        To: 65535
+      Protocol: 6
+      RuleAction: DENY
+      RuleNumber: 10000
+  PrivateSubnetworkAclAssociationA:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Select [ 0, !Ref PrivateSubnetIds ]
+      NetworkAclId: !Ref PrivateNetworkAcl
+  PrivateSubnetworkAclAssociationB:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Select [ 1, !Ref PrivateSubnetIds ]
+      NetworkAclId: !Ref PrivateNetworkAcl
+  PrivateSubnetworkAclAssociationC:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Select [ 2, !Ref PrivateSubnetIds ]
+      NetworkAclId: !Ref PrivateNetworkAcl
