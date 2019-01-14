@@ -20,7 +20,7 @@
     state: "present"
     region: "{{ aws_region }}"
     disable_rollback: true
-    template: "{{ role_path }}/files/elastic-ips.yaml"
+    template: "{{ role_path }}/files/elastic-ips.cf.yaml"
     template_parameters:
       NumBastionHosts: "{{ number_of_bastions }}"
 
@@ -49,11 +49,12 @@
     state: "present"
     region: "{{ aws_region }}"
     disable_rollback: true
-    template: "{{ role_path }}/files/vpc.yaml"
+    template: "{{ role_path }}/files/vpc.cf.yaml"
     template_parameters:
       AvailabilityZones: "{{ availability_zones }}"
       PublicSubnetCidrBlocks: "{{ public_subnet_cidr_blocks }}"
       PrivateSubnetCidrBlocks: "{{ private_subnet_cidr_blocks }}"
+      CreateInternetGateways: "{{ create_internet_gateway }}"
 
 - name: Gather Facts from Outputs of VPC Stack
   cloudformation_facts:
@@ -77,7 +78,7 @@
     state: "present"
     region: "{{ aws_region }}"
     disable_rollback: true
-    template: "{{ role_path }}/files/nacl.yaml"
+    template: "{{ role_path }}/files/nacl.cf.yaml"
     template_parameters:
       PublicSubnetIds: "{{ public_subnet_ids }}"
       PrivateSubnetIds: "{{ private_subnet_ids }}"
@@ -94,7 +95,7 @@
     state: "present"
     region: "{{ aws_region }}"
     disable_rollback: true
-    template: "{{ role_path }}/files/security-groups.yaml"
+    template: "{{ role_path }}/files/security-groups.cf.yaml"
     template_parameters:
       VpcId:  "{{ vpc_id }}"
       RemoteAccessCIDR:  "{{ vpn_cidr_block_range }}"
@@ -116,7 +117,7 @@
     state: "present"
     region: "{{ aws_region }}"
     disable_rollback: true
-    template: "{{ role_path }}/files/bastion.yaml"
+    template: "{{ role_path }}/files/bastion.cf.yaml"
     template_parameters:
       BastionAMIOS: Amazon-Linux-HVM
       BastionBanner: https://aws-quickstart.s3.amazonaws.com/quickstart-linux-bastion/scripts/banner_message.txt
@@ -148,7 +149,7 @@
     state: "present"
     region: "{{ aws_region }}"
     disable_rollback: true
-    template: "{{ role_path }}/files/ci-cd.yaml"
+    template: "{{ role_path }}/files/ci-cd.cf.yaml"
     template_parameters:
       ProjectName: "{{ project_name }}"
       GithubAccount: "{{ github_account }}"

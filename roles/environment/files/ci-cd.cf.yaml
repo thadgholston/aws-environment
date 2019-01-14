@@ -36,6 +36,7 @@ Resources:
             Principal:
               Service:
                 - "codepipeline.amazonaws.com"
+                - "s3.amazonaws.com"
             Action:
               - "sts:AssumeRole"
       Path: "/"

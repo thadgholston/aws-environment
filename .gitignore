@@ -4,3 +4,4 @@ inventories/prod
 **.iml
 .idea
 **.retry
+/aws-environment.iml

@@ -11,6 +11,15 @@ Parameters:
   PrivateSubnetCidrBlocks:
     Type: CommaDelimitedList
     Description: Cidr Block Ranges for Private Subnets
+  CreateInternetGateways:
+    Type: String
+    AllowedValues:
+    - "true"
+    - "false"
+Conditions:
+  AllowOutboundConnections: !Equals
+      - !Ref CreateInternetGateways
+      - "true"
 Resources:
   MainVpc:
     Type: AWS::EC2::VPC
@@ -133,10 +142,12 @@ Resources:
         Value: "PublicSubnetA"
   PublicEIPA:
     Type: AWS::EC2::EIP
+    Condition: AllowOutboundConnections
     Properties:
       Domain: "vpc"
   PublicNatGatewayA:
     Type: AWS::EC2::NatGateway
+    Condition: AllowOutboundConnections
     DependsOn: MainVPCGatewayAttachment
     Properties:
       AllocationId: !GetAtt PublicEIPA.AllocationId
@@ -160,10 +171,12 @@ Resources:
         Value: "PublicSubnetB"
   PublicEIPB:
     Type: AWS::EC2::EIP
+    Condition: AllowOutboundConnections
     Properties:
       Domain: "vpc"
   PublicNatGatewayB:
     Type: AWS::EC2::NatGateway
+    Condition: AllowOutboundConnections
     DependsOn: MainVPCGatewayAttachment
     Properties:
       AllocationId: !GetAtt PublicEIPB.AllocationId
@@ -187,10 +200,12 @@ Resources:
         Value: "PublicSubnetC"
   PublicEIPC:
     Type: AWS::EC2::EIP
+    Condition: AllowOutboundConnections
     Properties:
       Domain: "vpc"
   PublicNatGatewayC:
     Type: AWS::EC2::NatGateway
+    Condition: AllowOutboundConnections
     DependsOn: MainVPCGatewayAttachment
     Properties:
       AllocationId: !GetAtt PublicEIPC.AllocationId

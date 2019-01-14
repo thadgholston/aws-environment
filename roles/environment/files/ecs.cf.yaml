@@ -1,0 +1,119 @@
+---
+
+Description: Creates an ECS cluster
+AWSTemplateFormatVersion: "2010-09-09"
+Parameters:
+  AppName:
+    Type: String
+    Description: Name of app requiring ELB exposure
+  AppContainerPort:
+    Type: Number
+    Description: Container port of app requiring ELB exposure
+    Default: '443'
+  AppHostPort:
+    Type: Number
+    Description: Host port of app requiring ELB exposure
+    Default: '443'
+  ServiceName:
+    Type: String
+  LoadBalancerName:
+    Type: String
+  HealthCheckGracePeriodSeconds:
+    Type: String
+  VpcId:
+    Type: String
+  Path:
+    Type: String
+    Default: "*"
+    Description: A path on the public load balancer that this service
+                 should be connected to. Use * to send all load balancer
+                 traffic to this service.
+  Priority:
+    Type: Number
+    Default: 1
+    Description: The priority for the routing rule added to the load balancer.
+                 This only applies if your have multiple services which have been
+                 assigned to different paths on the load balancer.
+Resources:
+  TargetGroup:
+    Type: Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 6
+      HealthCheckPath: /
+      HealthCheckProtocol: HTTPS
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      TargetType: ip
+      Name: !Ref AppName
+      Port: !Ref AppContainerPort
+      Protocol: HTTPS
+      UnhealthyThresholdCount: 2
+      VpcId: !Ref VpcId
+  LoadBalancerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+        - TargetGroupArn: !Ref 'TargetGroup'
+          Type: 'forward'
+      Conditions:
+        - Field: path-pattern
+          Values: [!Ref 'Path']
+      ListenerArn:
+        Fn::ImportValue:
+          !Join [':', [!Ref 'StackName', 'PrivateListener']]
+      Priority: !Ref Priority
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: ECSCluster
+  ECSService:
+    Type: AWS::ECS::Service
+    DependsOn: LoadBalancerRule
+    Properties:
+      ServiceName: !Ref ServiceName
+      Cluster: !Ref ECSCluster
+      LaunchType: FARGATE
+      DeploymentConfiguration:
+        MaxiumPercent: 200
+        MinimumHealthyPercent: 100
+      DesiredCount: !Ref DesiredCount
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: Enabled
+          SecurityGroups: !Ref FargateContainerSecurityGroup
+          Subnets:
+            - PublicSubnetA
+            - PublicSubnetB
+            - PublicSubnetC
+      HealthCheckGracePeriodSeconds: !Ref HealthCheckGracePeriodSeconds
+      LoadBalancers:
+        - ContainerName: !Ref AppName
+          ContainerPort: !Ref ContainerPort
+          TargetGroupArn: !Ref TargetGroup
+      PlacementStrategies:
+        - Type: binpack
+          Field: memory
+        - Type: spread
+          Field: host
+      PlacementConstraints:
+        - Type: memberOf
+          Expression: 'attribute:ecs.availability-zone != us-east-1d'
+        - Type: distinctInstance
+      TaskDefinition: !Ref TaskDefinition
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Ref AppName
+      Cpu: !Ref ContainerCpu
+      Memory: !Ref ContainerMemory
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !Ref ECSTaskExecutionRole
+      TaskRoleArn: !Ref AWS::NoValue
+      ContainerDefinitions:
+        - Name: !Ref AppName
+          Image: amazon/amazon-ecs-sample
+          Cpu: !Ref ContainerCpu
+          PortMappings:
+            - ContainerPort: !Ref ContainerPort
