@@ -1,0 +1,327 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Deploys CI/CD Pipeline for Environment
+Parameters:
+  ProjectName:
+    Type: String
+    Description: Name of the Project
+  GithubAccount:
+    Type: String
+  GitHubOAuthToken:
+    Type: String
+  ApiRepo:
+    Type: String
+  AwsRegion:
+    Type: String
+Resources:
+  ApiECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: "api-repository"
+  ApiCodeBuildArtifactStore:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: Private
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      BucketName: api-codebuild-artifact-store
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: True
+        BlockPublicPolicy: True
+        IgnorePublicAcls: True
+        RestrictPublicBuckets: True
+  ApiCodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ApiCodeBuildRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Effect: "Allow"
+            Principal:
+              Service:
+                - "codebuild.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: "/"
+      Policies:
+        -
+          PolicyName: "ApiCodeBuildPolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource:
+                  - Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/*
+              - Effect: "Allow"
+                Action:
+                  - "s3:PutObject"
+                  - "s3:GetObject"
+                  - "s3:GetObjectVersion"
+                  - "s3:ListBucket"
+                Resource:
+                  - Fn::Sub: arn:aws:s3:::codepipeline-${AWS::Region}-*
+                  - Fn::Sub: arn:aws:s3:::api-codebuild-artifact-store/*
+                  - Fn::Sub: arn:aws:s3:::api-codebuild-artifact-store
+                  - "*"
+  ApiCodeBuildTestProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: ApiCodeBuildTestProject
+      Description: Build to validate and copy API service
+      ServiceRole: !GetAtt ApiCodeBuildRole.Arn
+      Artifacts:
+        Type: S3
+        Location: !Ref ApiCodeBuildArtifactStore
+        Name: CodeBuildOutput
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: python:3.7.2-stretch
+        EnvironmentVariables:
+          - Name: DEBUG
+            Value: true
+          - Name: AWS_DEFAULT_REGION
+            Value: !Ref AwsRegion
+      Source:
+        Auth:
+          Type: OAUTH
+        GitCloneDepth: 0
+        Location: "https://github.com/thadgholston/not-hot-dog-service.git"
+        ReportBuildStatus: True
+        Type: GITHUB
+        BuildSpec: buildspec-test.yml
+      TimeoutInMinutes: 15
+  ApiCodeBuildECRProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: ApiCodeBuildECRProject
+      Description: Build to validate and copy API service
+      ServiceRole: !GetAtt ApiCodeBuildRole.Arn
+      Artifacts:
+        Type: S3
+        Location: !Ref ApiCodeBuildArtifactStore
+        Name: CodeBuildOutput
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: python:3.7.2-stretch
+        EnvironmentVariables:
+          - Name: DEBUG
+            Value: true
+          - Name: AWS_DEFAULT_REGION
+            Value: !Ref AwsRegion
+      Source:
+        Auth:
+          Type: OAUTH
+        GitCloneDepth: 0
+        Location: "https://github.com/thadgholston/not-hot-dog-service.git"
+        ReportBuildStatus: True
+        Type: GITHUB
+        BuildSpec: buildspec-build.yml
+      TimeoutInMinutes: 15
+  ApiCodeDeployApplication:
+    Type: AWS::CodeDeploy::Application
+    Properties:
+      ApplicationName: ApiCodeDeployApplication
+      ComputePlatform: ECS
+  ApiCodePipelineArtifactStore:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: Private
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      BucketName: api-artifact-store
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: True
+        BlockPublicPolicy: True
+        IgnorePublicAcls: True
+        RestrictPublicBuckets: True
+  ApiCodePipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ApiCodePipelineRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Effect: "Allow"
+            Principal:
+              Service:
+                - "codepipeline.amazonaws.com"
+                - "s3.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: "/"
+      Policies:
+        -
+          PolicyName: "ApiCodePipelinePolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              -
+                Action:
+                  - "s3:DeleteObject"
+                  - "s3:GetObject"
+                  - "s3:GetObjectVersion"
+                  - "s3:ListBucket"
+                  - "s3:PutObject"
+                  - "s3:GetBucketPolicy"
+                Resource:
+                  - arn:aws:s3:::api-artifact-store
+                  - arn:aws:s3:::api-artifact-store/*
+                Effect: "Allow"
+              -
+                Action:
+                  - "codedeploy:CreateDeployment"
+                  - "codedeploy:GetApplicationRevision"
+                  - "codedeploy:GetDeployment"
+                  - "codedeploy:GetDeploymentConfig"
+                  - "codedeploy:RegisterApplicationRevision"
+                Resource:
+                  - "*"
+                Effect: "Allow"
+              -
+                Action:
+                  - "codebuild:BatchGetBuilds"
+                  - "codebuild:StartBuild"
+                Resource:
+                  - "*"
+                Effect: "Allow"
+
+  ApiCodePipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      Name: ApiCodePipeline
+      RestartExecutionOnUpdate: True
+      RoleArn: !GetAtt ApiCodePipelineRole.Arn
+      ArtifactStore:
+        Location: !Ref ApiCodePipelineArtifactStore
+        Type: S3
+      Stages:
+        -
+          Name: Source
+          Actions:
+            -
+              Name: SourceAction
+              ActionTypeId:
+                Category: Source
+                Owner: ThirdParty
+                Version: 1
+                Provider: GitHub
+              OutputArtifacts:
+                -
+                  Name: SourceOutput
+              Configuration:
+                Owner: !Ref GithubAccount
+                Repo: !Ref ApiRepo
+                PollForSourceChanges: False
+                Branch: master
+                OAuthToken: !Ref GitHubOAuthToken
+              RunOrder: 1
+        -
+          Name: Test
+          Actions:
+            -
+              Name: TestAction
+              ActionTypeId:
+                Category: Test
+                Owner: AWS
+                Version: 1
+                Provider: CodeBuild
+              InputArtifacts:
+                -
+                  Name: SourceOutput
+              OutputArtifacts:
+                -
+                  Name: TestOutput
+              Configuration:
+                ProjectName: !Ref ApiCodeBuildTestProject
+              RunOrder: 2
+        -
+          Name: Build
+          Actions:
+            -
+              Name: BuildAction
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: 1
+                Provider: CodeBuild
+              InputArtifacts:
+                -
+                  Name: SourceOutput
+              OutputArtifacts:
+                -
+                  Name: BuildOutput
+              Configuration:
+                ProjectName: !Ref ApiCodeBuildECRProject
+              RunOrder: 3
+        -
+          Name: Deploy
+          Actions:
+            -
+              Name: DeployAction
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Version: 1
+                Provider: ECS
+              InputArtifacts:
+                -
+                  Name: SourceOutput
+              Configuration:
+                ClusterName: "api-ecs-service"
+                ServiceName: "api-service"
+                FileName: "apidefinitions.json"
+              RunOrder: 4
+  MasterApiWebhook:
+    Type: AWS::CodePipeline::Webhook
+    Properties:
+      AuthenticationConfiguration:
+        SecretToken: !Ref GitHubOAuthToken
+      Filters:
+        - JsonPath: "$.ref"
+          MatchEquals: refs/heads/master
+      Authentication: GITHUB_HMAC
+      TargetPipeline: !Ref ApiCodePipeline
+      TargetAction: SourceAction
+      Name: MasterApiWebhook
+      TargetPipelineVersion: !GetAtt ApiCodePipeline.Version
+      RegisterWithThirdParty: 'true'
+  OpenedPullRequestApiWebhook:
+    Type: AWS::CodePipeline::Webhook
+    Properties:
+      AuthenticationConfiguration:
+        SecretToken: !Ref GitHubOAuthToken
+      Filters:
+        - JsonPath: "$.action"
+          MatchEquals: "opened"
+      Authentication: GITHUB_HMAC
+      TargetPipeline: !Ref ApiCodePipeline
+      TargetAction: SourceAction
+      Name: OpenedPullRequestApiWebhook
+      TargetPipelineVersion: !GetAtt ApiCodePipeline.Version
+      RegisterWithThirdParty: 'true'
+  EditedPullRequestApiWebhook:
+    Type: AWS::CodePipeline::Webhook
+    Properties:
+      AuthenticationConfiguration:
+        SecretToken: !Ref GitHubOAuthToken
+      Filters:
+        - JsonPath: "$.action"
+          MatchEquals: "edited"
+      Authentication: GITHUB_HMAC
+      TargetPipeline: !Ref ApiCodePipeline
+      TargetAction: SourceAction
+      Name: EditedPullRequestApiWebhook
+      TargetPipelineVersion: !GetAtt ApiCodePipeline.Version
+      RegisterWithThirdParty: 'true'

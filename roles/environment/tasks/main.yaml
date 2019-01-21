@@ -142,16 +142,17 @@
       BastionSecurityGroupId: "{{ bastion_security_group_id }}"
       BastionEIPList: "{{ bastion_eip_1 }},{{ bastion_eip_2 | default('Null') }},{{ bastion_eip_3 | default('Null') }},{{ bastion_eip_4 | default('Null') }}"
 
-- name: Deploy CI/CD Pipeline
+- name: Deploy Django CI/CD Pipeline
   cloudformation:
     profile: "{{ aws_profile }}"
-    stack_name: "ci-cd"
+    stack_name: "django-ci-cd"
     state: "present"
     region: "{{ aws_region }}"
     disable_rollback: true
-    template: "{{ role_path }}/files/ci-cd.cf.yaml"
+    template: "{{ role_path }}/files/django-ci-cd.cf.yaml"
     template_parameters:
       ProjectName: "{{ project_name }}"
       GithubAccount: "{{ github_account }}"
       GitHubOAuthToken: "{{ github_oauth_token }}"
       ApiRepo: "{{ api_repo }}"
+      AwsRegion: "{{ aws_region }}"
